@@ -2,15 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import "./chat.css"
 import EmojiPicker from "emoji-picker-react";
 import { onSnapshot, doc, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
-import { db } from "../../lib/firebase";
+import { auth, db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
 import upload from "../../lib/upload"
 
 const Chat = () => {
     const [open, setOpen] = useState(false);
+    const [drop, setDrop] = useState(false);
     const [text, setText] = useState("");
     const [chat, setChat] = useState("");
+    const [sending, setSending] = useState(false);
     const [img, setImg] = useState({
         file: null,
         url: "",
@@ -39,7 +41,8 @@ const Chat = () => {
     }
 
     const handleSend = async () => {
-        if (text === "") return;
+        setSending(true)
+        if (text === "") return setSending(false);
             
         let imgUrl = null;
 
@@ -89,6 +92,8 @@ const Chat = () => {
             url: "",
         }),
         setText("");
+        setSending(false)
+
     }
 
     const handleImg = (e) => {
@@ -99,11 +104,20 @@ const Chat = () => {
             });
         }
     } 
+    const handleTime = (e) => {
+        const createdAt = e.toDate(); // Convert Firestore timestamp to JavaScript Date object
 
-    console.log(text)
+        // Custom format function to display date without seconds
+        const formattedDate = `${createdAt.toLocaleDateString()} ${createdAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+        return(
+            formattedDate        
+        )
+    }
+    
     return (
         <div className="chat">
             <div className="top">
+                <img src="./arrowLeft.png" alt="" className="back" onClick={() => window.location.reload()}/>
                 <div className="user">
                     <img src={user?.avatar || "./avatar.png"} alt="" />
                     <div className="texts">
@@ -112,9 +126,10 @@ const Chat = () => {
                     </div>
                 </div>
                 <div className="icons">
-                    <img src="./phone.png" alt="" />
+                    <button onClick={() => auth.signOut()}>Logout</button>
+                    {/* <img src="./phone.png" alt="" />
                     <img src="./video.png" alt="" />
-                    <img src="./info.png" alt="" />
+                    <img src="./info.png" alt="" /> */}
                 </div>
             </div>
 
@@ -124,7 +139,7 @@ const Chat = () => {
                     <div className="texts">
                         {message.img && <img src={message.img} alt="" />}
                         <p>{message.text}</p>
-                        <span>1 min ago</span>
+                        <span>{handleTime(message.createdAt)}</span>
                     </div>
                 </div>
             ))}
@@ -159,7 +174,7 @@ const Chat = () => {
                         <EmojiPicker open={open} onEmojiClick={handleEmoji}/>
                     </div>
                 </div>
-                <button className="sendButton" onClick={handleSend} disabled={isCurrentUserBlocked || isReceiverBlocked}>Send</button>
+                <button className="sendButton" onClick={handleSend} disabled={isCurrentUserBlocked || isReceiverBlocked || sending}>{sending ? "Sending" : "Send"}</button>
             </div>
         </div>
     )

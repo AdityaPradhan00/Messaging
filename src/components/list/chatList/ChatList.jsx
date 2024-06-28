@@ -6,7 +6,7 @@ import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { useChatStore } from "../../../lib/chatStore";
 
-const ChatList = () => {
+const ChatList = ({onItemClick }) => {
     const [addMode, setAddMode] = useState(false);
     const [chats, setChats] = useState([]);
     const [input, setInput] = useState("");
@@ -38,7 +38,6 @@ const ChatList = () => {
     }, [currentUser.id]);
 
     const handleSelect = async (chat) => {
-     
         const userChats = chats.map(item => {
             const { user, ...rest } = item;
             return rest;
@@ -55,6 +54,7 @@ const ChatList = () => {
                 chats: userChats,
             })
             changeChat(chat.chatId, chat.user)
+            onItemClick();
         }catch(err){
             console.log(err);
         }

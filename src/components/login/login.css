@@ -3,7 +3,19 @@
     height: 100%;
     display: flex;
     align-items: center;
-    gap: 100px;
+    justify-content: center;
+
+    .btns{
+        width: 100%;
+        padding: 20px;
+        border: none;
+        background-color: #1f8ef1;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: 500;
+    }
+
 
     .item{
         flex: 1;
@@ -61,11 +73,5 @@
                 }
             }
         }
-    }
-
-    .separator{
-        height: 80%;
-        width: 2px;
-        background-color: #dddddd35;
     }
 }
