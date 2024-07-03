@@ -14,6 +14,7 @@ const List = () => {
         const handleResize = () => {
             setScreenWidth(window.innerWidth);
         };
+        console.log('s', screenWidth)
         window.addEventListener('resize', handleResize);
         return () => {
             window.removeEventListener('resize', handleResize);
@@ -22,7 +23,7 @@ const List = () => {
 
     // Function to handle item click and hide List on small screens
     const handleItemClick = () => {
-        if (screenWidth < 1080) {
+        if (screenWidth < 860) {
             setListVisible(false);
         }
     };

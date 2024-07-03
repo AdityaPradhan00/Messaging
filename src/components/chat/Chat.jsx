@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useRef, useEffect, useState } from 'react';
 import "./chat.css"
 import EmojiPicker from "emoji-picker-react";
 import { onSnapshot, doc, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
@@ -6,8 +6,105 @@ import { auth, db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
 import upload from "../../lib/upload"
+import * as faceapi from 'face-api.js';
+import { toast } from 'react-toastify';
 
 const Chat = () => {
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const [emoData, setEmoData] = useState('');
+    const [emotionCounts, setEmotionCounts] = useState({});
+
+    useEffect(() => {
+        startVideo();
+        loadModels();
+      }, []);
+    
+      const startVideo = () => {
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then(currentStream => {
+            videoRef.current.srcObject = currentStream;
+          })
+          .catch(err => {
+            console.log(err);
+          });
+      };
+    
+      const loadModels = async () => {
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
+          faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
+          faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
+          faceapi.nets.faceExpressionNet.loadFromUri("/models"),
+        ]);
+      };
+    
+      const startFaceDetection = async () => {
+        try {
+          const initialEmotionCounts = {};
+          let isFirstDetection = true;
+    
+  
+            const detections = await faceapi.detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+              .withFaceLandmarks()
+              .withFaceExpressions();
+    
+            canvasRef.current.innerHTML = faceapi.createCanvasFromMedia(videoRef.current);
+            faceapi.matchDimensions(canvasRef.current, { width: 940, height: 650 });
+    
+            const resizedDetections = faceapi.resizeResults(detections, { width: 940, height: 650 });
+    
+            faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
+            faceapi.draw.drawFaceLandmarks(canvasRef.current, resizedDetections);
+            faceapi.draw.drawFaceExpressions(canvasRef.current, resizedDetections);
+    
+            // Track emotion prevalence from the first detection
+            if (isFirstDetection) {
+              resizedDetections.forEach(result => {
+                const expressions = result.expressions;
+                const dominantExpression = Object.keys(expressions).reduce((a, b) => expressions[a] > expressions[b] ? a : b);
+                initialEmotionCounts[dominantExpression] = (initialEmotionCounts[dominantExpression] || 0) + 1;
+              });
+              setEmotionCounts(initialEmotionCounts);
+              isFirstDetection = false;
+            } else {
+              resizedDetections.forEach(result => {
+                const expressions = result.expressions;
+                const dominantExpression = Object.keys(expressions).reduce((a, b) => expressions[a] > expressions[b] ? a : b);
+                setEmotionCounts(prevCounts => ({
+                  ...prevCounts,
+                  [dominantExpression]: (prevCounts[dominantExpression] || 0) + 1
+                }));
+              });
+            }
+    
+            await new Promise(resolve => setTimeout(resolve, 100)); // Adjust delay as needed
+          }catch (error) {
+          console.error("Face detection error:", error);
+        }
+      };
+    
+      const handleStartDetection = () => {
+        startFaceDetection();
+      };
+    
+      const calculateEmoData = () => {
+        try{
+        const mostPrevalentEmotion = Object.keys(emotionCounts).reduce((a, b) => emotionCounts[a] > emotionCounts[b] ? a : b);
+        const maxCount = emotionCounts[mostPrevalentEmotion] || 0;
+        const confidence = maxCount / Object.values(emotionCounts).reduce((a, b) => a + b, 0) * 100;
+        
+        console.log( mostPrevalentEmotion, confidence.toFixed(2))
+        return {
+            emotion: mostPrevalentEmotion,
+            confidence: confidence.toFixed(2)
+        };
+      }catch(err){
+        toast.warn("Emotion not detected!")
+        console.log(err)
+      }
+    };
+
     const [open, setOpen] = useState(false);
     const [drop, setDrop] = useState(false);
     const [text, setText] = useState("");
@@ -39,62 +136,64 @@ const Chat = () => {
         setText((prev) => prev+e.emoji);
         setOpen(false);
     }
-
     const handleSend = async () => {
-        setSending(true)
-        if (text === "") return setSending(false);
-            
-        let imgUrl = null;
-
-
-        try{
-
-            if(img.file){
-                imgUrl = await upload(img.file);
-            }
-
-            await updateDoc(doc(db, "chats", chatId), {
-                messages: arrayUnion({
-                    senderId: currentUser.id,
-                    text,
-                    createdAt: new Date(),
-                    ...(imgUrl && {img: imgUrl}), 
-                })
-            });
-
-            const userIDs = [currentUser.id, user.id];
-
-            userIDs.forEach(async (id) =>{ 
-                const userChatsRef = doc(db, "userchats", id);
-                const userChatsSnapshot = await getDoc(userChatsRef);
-                
-                if(userChatsSnapshot.exists()){
-                    const userChatsData = userChatsSnapshot.data(); 
-                    
-                    const chatIndex = userChatsData.chats.findIndex(c => c.chatId === chatId);
-                    
-                    userChatsData.chats[chatIndex].lastMessage = text;
-                    userChatsData.chats[chatIndex].isSeen = id === currentUser.id ? true : false;
-                    userChatsData.chats[chatIndex].updatedAt = Date.now();
-                    
-                    await updateDoc(userChatsRef, {
-                        chats: userChatsData.chats,
-                        
-                    })        
-                }
-            })
-        }catch(err){
-            console.log(err);
+        setSending(true);
+        if (text === "") {
+          setSending(false);
+          return;
         }
+      
+        const dataToSend = calculateEmoData();
+        setEmoData(dataToSend)
 
-        setImg({
-            file: null,
-            url: "",
-        }),
-        setText("");
-        setSending(false)
-
-    }
+        let imgUrl = null;
+        try {
+          // Upload image if available
+          if (img.file) {
+            imgUrl = await upload(img.file);
+          }
+      
+          // Update chat document with message data including emoData
+          await updateDoc(doc(db, "chats", chatId), {
+            messages: arrayUnion({
+              senderId: currentUser.id,
+              text,
+              createdAt: new Date(),
+              ...(imgUrl && { img: imgUrl }),
+              ...(emoData && {emoData: dataToSend}),
+               // Conditionally add imgUrl if it exists
+            }),
+          });
+      
+          // Update user's chat list
+          const userIDs = [currentUser.id, user.id];
+          userIDs.forEach(async (id) => {
+            const userChatsRef = doc(db, "userchats", id);
+            const userChatsSnapshot = await getDoc(userChatsRef);
+      
+            if (userChatsSnapshot.exists()) {
+              const userChatsData = userChatsSnapshot.data();
+      
+              const chatIndex = userChatsData.chats.findIndex((c) => c.chatId === chatId);
+      
+              userChatsData.chats[chatIndex].lastMessage = text;
+              userChatsData.chats[chatIndex].isSeen = id === currentUser.id ? true : false;
+              userChatsData.chats[chatIndex].updatedAt = Date.now();
+      
+              await updateDoc(userChatsRef, {
+                chats: userChatsData.chats,
+              });
+            }
+          });
+        } catch (err) {
+          console.log(err);
+        } finally {
+          setSending(false);
+          setText('');
+          setImg({file: null,
+            url: "",}) // Reset sending state
+        }
+      };
 
     const handleImg = (e) => {
         if(e.target.files[0]){
@@ -139,6 +238,13 @@ const Chat = () => {
                     <div className="texts">
                         {message.img && <img src={message.img} alt="" />}
                         <p>{message.text}</p>
+                        {message.emoData && ( 
+                          <div style={{display:'flex', alignItems:'flex-end', justifyContent:'flex-end', backgroundColor: 'rgba(17, 25, 40, 0.3)'}}>
+                              <p style={{fontSize: '12px', backgroundColor:'transparent'}}>Emotion: {message.emoData.emotion}</p>
+                              <p style={{fontSize: '12px', backgroundColor:'transparent'}}>Confidence: {message.emoData.confidence}%</p>
+                              {/* Add other emotion data fields as needed */}
+                          </div>
+                        )}
                         <span>{handleTime(message.createdAt)}</span>
                     </div>
                 </div>
@@ -159,21 +265,31 @@ const Chat = () => {
                         <img src="./img.png" alt="" />
                     </label>
                     <input type="file"  id="file" onChange={handleImg} style={{display: "none"}}/>
-                    <img src="./camera.png" alt="" />
                     <img src="./mic.png" alt="" />
                 </div>
+                <div className='appvide'>
+                  <video style={{display: "none"}} crossOrigin="anonymous" ref={videoRef} autoPlay></video>
+                </div>
+                <canvas style={{display: "none"}} ref={canvasRef} width="940" height="650" className="appcanvas" />
                 <input 
                     type="text" 
                     placeholder={(isCurrentUserBlocked || isReceiverBlocked) ? "Blocked! Cannot send a message " : "Type a message..." }
                     value={text} 
-                    onChange={e=>setText(e.target.value)} 
-                    disabled={isCurrentUserBlocked || isReceiverBlocked}/>
+                    onChange={(e) => {
+                        setText(e.target.value);
+                        handleStartDetection();
+                      }}                  
+                      disabled={isCurrentUserBlocked || isReceiverBlocked}/>
                 <div className="emoji">
                     <img src="./emoji.png" alt="" onClick={() => setOpen((prev) => !prev)}/>
                     <div className="picker">
                         <EmojiPicker open={open} onEmojiClick={handleEmoji}/>
                     </div>
                 </div>
+                <div className='appvide'>
+                  <video style={{display: "none"}} crossOrigin="anonymous" ref={videoRef} autoPlay></video>
+                </div>
+                <canvas style={{display: "none"}} ref={canvasRef} width="940" height="650" className="appcanvas" />
                 <button className="sendButton" onClick={handleSend} disabled={isCurrentUserBlocked || isReceiverBlocked || sending}>{sending ? "Sending" : "Send"}</button>
             </div>
         </div>
