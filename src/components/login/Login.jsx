@@ -50,10 +50,13 @@ const Login = () => {
         const { username, email, password } = Object.fromEntries(formData);
     
         // VALIDATE INPUTS
-        if (!username || !email || !password)
-          return toast.warn("Please enter inputs!");
-        if (!avatar.file) return toast.warn("Please upload an avatar!");
-    
+        if (!username || !email || !password){
+            toast.warn("Please enter inputs!");
+        }
+        if (!avatar.file){
+            toast.warn("Please upload an avatar!");
+        } 
+            
         // VALIDATE UNIQUE USERNAME
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("username", "==", username));
@@ -80,7 +83,8 @@ const Login = () => {
             chats: [],
           });
     
-          toast.success("Account created! You can login now!");
+          toast.success("Account created! Reloading!");
+          window.location.reload();
         } catch (err) {
           console.log(err);
           toast.error(err.message);
@@ -90,7 +94,7 @@ const Login = () => {
                 file: null,
                 url: ""
             })
-            window.location.reload();
+            
         }
       };
 
@@ -106,12 +110,36 @@ const Login = () => {
     const shouldHideButtons = logView || resView;
 
     return ( 
-        <div className="login">
+        <div className="login" style={{flexDirection: (!shouldHideButtons) ? "column" : "row"}}> 
+           <div className="version">
+                <h3>Note: </h3>
+                <p>Version 1.1</p>
+                <div style={{marginLeft: '10px'}}>
+                    <ul>
+                        <li>Registration/Sign-up can be done using any email as verification has been disabled.</li>
+                        <li>Implemented Basic real-time messaging functionality implemented, allowing users to send and receive messages instantly.</li>
+                        <li>Image sending functionality is implemented.</li>
+                        <li>Integrated face-api.js to detect the sender's emotion under well-lit conditions.</li>
+                    </ul>
+                </div>
+                <br />
+                <p>In development</p>
+                <div style={{marginLeft: '15px'}}>
+                    <ul>
+                        <li>Voice Messaging.</li>
+                        <li>End to End encryption.</li>
+                        <li>Tone detection in voice messages with urgent notifications.</li>
+                        <li>Improving emotion detection with a new model or custom training.</li>
+                    </ul>
+                </div>
+            </div>
              <div style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: "10px"
-             }}>
+                gap: "10px",
+             }}> 
+              <div className={!shouldHideButtons? "none": "separator"}></div> 
+
              {!logView && !shouldHideButtons && <button onClick={handleLogView} className="btns">Login</button>}
              {!resView && !shouldHideButtons && <button onClick={handleResView} className="btns">Register</button>}
             </div>
@@ -138,7 +166,7 @@ const Login = () => {
                             <input type="text" placeholder="Username" name="username" />
                             <input type="text" placeholder="Email" name="email" />
                             <input type="password" placeholder="Password" name="password" />
-                            <button disabled={loading}>{loading ? "Creating" : "Sign Up"}</button>
+                            <button disabled={loading}>{loading ? "Creating..." : "Sign Up"}</button>
                             <h4>OR</h4>
                             <p style={{cursor: "pointer", }} onClick={handleLogView}>Already have an account?</p>
                         </form>
