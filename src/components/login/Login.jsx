@@ -137,6 +137,7 @@ const Login = () => {
                 display: "flex",
                 flexDirection: "column",
                 gap: "10px",
+                padding: "20px"
              }}> 
               <div className={!shouldHideButtons? "none": "separator"}></div> 
 

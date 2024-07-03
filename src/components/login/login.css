@@ -4,7 +4,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-direction: column;
     overflow: scroll;
+    
     .btns{
         width: 100%;
         padding: 20px;
@@ -13,7 +15,7 @@
         color: white;
         border-radius: 5px;
         cursor: pointer;
-        font-weight: 500;
+        font-weight: 600;
     }
     .separator {
         height: 85vh;
