@@ -7,13 +7,15 @@ import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
 import upload from "../../lib/upload"
 import * as faceapi from 'face-api.js';
-import { toast } from 'react-toastify';
+import SendIcon from '@mui/icons-material/Send';
+import Voice from './Voice';
 
 const Chat = () => {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const [emoData, setEmoData] = useState('');
     const [emotionCounts, setEmotionCounts] = useState({});
+    const [faceError, setFaceError] = useState(false);
 
     useEffect(() => {
         startVideo();
@@ -80,7 +82,8 @@ const Chat = () => {
     
             await new Promise(resolve => setTimeout(resolve, 100)); // Adjust delay as needed
           }catch (error) {
-          console.error("Face detection error:", error);
+            
+            console.error("Face detection error:", error);
         }
       };
     
@@ -100,13 +103,13 @@ const Chat = () => {
             confidence: confidence.toFixed(2)
         };
       }catch(err){
-        toast.warn("Emotion not detected!")
+        setFaceError(true);
+        setTimeout(() => setFaceError(false), 5000)
         console.log(err)
       }
     };
 
     const [open, setOpen] = useState(false);
-    const [drop, setDrop] = useState(false);
     const [text, setText] = useState("");
     const [chat, setChat] = useState("");
     const [sending, setSending] = useState(false);
@@ -114,6 +117,7 @@ const Chat = () => {
         file: null,
         url: "",
     });
+
     const{ chatId, user, isCurrentUserBlocked, isReceiverBlocked, }= useChatStore();
     const{ currentUser }= useUserStore();
 
@@ -143,7 +147,7 @@ const Chat = () => {
           return;
         }
       
-        const dataToSend = calculateEmoData();
+        const dataToSend = await calculateEmoData();
         setEmoData(dataToSend)
 
         let imgUrl = null;
@@ -161,6 +165,7 @@ const Chat = () => {
               createdAt: new Date(),
               ...(imgUrl && { img: imgUrl }),
               ...(emoData && {emoData: dataToSend}),
+
                // Conditionally add imgUrl if it exists
             }),
           });
@@ -212,7 +217,58 @@ const Chat = () => {
             formattedDate        
         )
     }
+
+    const [audioUrl, setAudioUrl] = useState('');
+
+
+
+    const handleAudio = async (url) => {
+      console.log('Data url', url);
+
+      const dataToSend = await calculateEmoData();
+      setEmoData(dataToSend);
+
+      try{
+        await updateDoc(doc(db, "chats", chatId), {
+          messages: arrayUnion({
+            senderId: currentUser.id,
+            createdAt: new Date(),
+            audio: url,
+            ...(emoData && {emoData: dataToSend}),
+          }),
+        });
+        const userIDs = [currentUser.id, user.id];
+        userIDs.forEach(async (id) => {
+          const userChatsRef = doc(db, "userchats", id);
+          
+          const userChatsSnapshot = await getDoc(userChatsRef);
+          
+          
+          if (userChatsSnapshot.exists()) {
+            const userChatsData = userChatsSnapshot.data();
+            
+            const chatIndex = userChatsData.chats.findIndex((c) => c.chatId === chatId);
+            
+            userChatsData.chats[chatIndex].lastMessage = 'audio';
+            userChatsData.chats[chatIndex].isSeen = id === currentUser.id ? true : false;
+            userChatsData.chats[chatIndex].updatedAt = Date.now();
     
+            await updateDoc(userChatsRef, {
+              chats: userChatsData.chats,
+            });
+          }
+        });  
+      } catch (err){
+        console.log(err)
+      } finally {
+        setAudioUrl('');
+      }
+
+
+    };
+ 
+
+
     return (
         <div className="chat">
             <div className="top">
@@ -237,7 +293,9 @@ const Chat = () => {
                     <div className={message.senderId === currentUser?.id ? "message own" : "message"} key={message?.createdAt}>
                     <div className="texts">
                         {message.img && <img src={message.img} alt="" />}
-                        <p>{message.text}</p>
+                        
+                        {message.audio ? <audio controls src={message.audio} /> : <p>{message.text}</p>}
+                        
                         {message.emoData && ( 
                           <div style={{display:'flex', alignItems:'flex-end', justifyContent:'flex-end', backgroundColor: 'rgba(17, 25, 40, 0.3)'}}>
                               <p style={{fontSize: '12px', backgroundColor:'transparent'}}>Emotion: {message.emoData.emotion}</p>
@@ -249,6 +307,7 @@ const Chat = () => {
                     </div>
                 </div>
             ))}
+            {faceError && <p style={{textAlign: 'center', color:'rgb(220, 20, 60)'}} >Face Not detected!!</p>}
             {
                 img.url && 
                 <div className="message own">
@@ -265,7 +324,6 @@ const Chat = () => {
                         <img src="./img.png" alt="" />
                     </label>
                     <input type="file"  id="file" onChange={handleImg} style={{display: "none"}}/>
-                    <img src="./mic.png" alt="" />
                 </div>
                 <div className='appvide'>
                   <video style={{display: "none"}} crossOrigin="anonymous" ref={videoRef} autoPlay></video>
@@ -290,7 +348,11 @@ const Chat = () => {
                   <video style={{display: "none"}} crossOrigin="anonymous" ref={videoRef} autoPlay></video>
                 </div>
                 <canvas style={{display: "none"}} ref={canvasRef} width="940" height="650" className="appcanvas" />
-                <button className="sendButton" onClick={handleSend} disabled={isCurrentUserBlocked || isReceiverBlocked || sending}>{sending ? "Sending" : "Send"}</button>
+                {text != '' ?
+                      <SendIcon  onClick={handleSend} style={{marginBottom: '6px', cursor: isCurrentUserBlocked || isReceiverBlocked || sending  ? "not-allowed" : "pointer"}} disabled={isCurrentUserBlocked || isReceiverBlocked || sending}/>
+                      :
+                      <Voice onComplete={handleAudio} />
+                    }
             </div>
         </div>
     )

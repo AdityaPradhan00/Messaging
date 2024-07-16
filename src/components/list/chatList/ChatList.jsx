@@ -5,6 +5,8 @@ import { useUserStore } from "../../../lib/userStore"
 import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { useChatStore } from "../../../lib/chatStore";
+import MicIcon from '@mui/icons-material/Mic';
+import Mic from "@mui/icons-material/Mic";
 
 const ChatList = ({onItemClick }) => {
     const [addMode, setAddMode] = useState(false);
@@ -81,7 +83,7 @@ const ChatList = ({onItemClick }) => {
                 <div className="texts">
                     <span>{chat.user.blocked.includes(currentUser.id)
                         ? "User" : chat.user.username}</span>
-                    <p>{chat.lastMessage}</p>
+                    <p>{chat.lastMessage == 'audio' ? <Mic /> :  chat.lastMessage}</p>
                 </div>
             </div>
             )}

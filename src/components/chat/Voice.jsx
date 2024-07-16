@@ -1,96 +1,89 @@
+import React, { useState, useEffect } from 'react';
+import { storage } from '../../lib/firebase';
+import { uploadBytesResumable, ref, getDownloadURL } from 'firebase/storage';
+import MicIcon from '@mui/icons-material/Mic';
+import GraphicEqIcon from '@mui/icons-material/GraphicEq';
+import { useChatStore } from "../../lib/chatStore";
 
-let audioIN = { audio: true };
-//  audio is true, for recording
+const Voice = ({onComplete}) => {
+    const [recording, setRecording] = useState(false);
+    const [mediaRecorder, setMediaRecorder] = useState(null);
+    const{ chatId, user, isCurrentUserBlocked, isReceiverBlocked, }= useChatStore();
 
-// Access the permission for use
-// the microphone
-navigator.mediaDevices.getUserMedia(audioIN)
 
-  // 'then()' method returns a Promise
-  .then(function (mediaStreamObj) {
+    useEffect(() => {
+        // Access the permission for use of the microphone
+        const audioIN = { audio: true };
+        navigator.mediaDevices.getUserMedia(audioIN)
+            .then(mediaStreamObj => {
+                // Initialize the media recorder with the audio stream
+                const recorder = new MediaRecorder(mediaStreamObj);
+                let dataArray = [];
 
-    // Connect the media stream to the
-    // first audio element
-    let audio = document.querySelector('audio');
-    //returns the recorded audio via 'audio' tag
+                recorder.ondataavailable = event => {
+                    dataArray.push(event.data);
+                };
 
-    // 'srcObject' is a property which 
-    // takes the media object
-    // This is supported in the newer browsers
-    if ("srcObject" in audio) {
-      audio.srcObject = mediaStreamObj;
-    }
-    else {   // Old version
-      audio.src = window.URL
-        .createObjectURL(mediaStreamObj);
-    }
+                recorder.onstop = () => {
+                    const audioData = new Blob(dataArray, { type: 'audio/mp3' });
 
-    // It will play the audio
-    audio.onloadedmetadata = function (ev) {
+                    const date = new Date();
+                    const storageRef = ref(storage, `voice_notes/${date.getTime() + chatId}.mp3`); // Use getTime() for unique file names
+                    const uploadTask = uploadBytesResumable(storageRef, audioData);
 
-      // Play the audio in the 2nd audio
-      // element what is being recorded
-      audio.play();
+                    uploadTask.on('state_changed',
+                        (snapshot) => {
+                            // Handle progress or other state changes if needed
+                        },
+                        (error) => {
+                            console.error('Error uploading audio:', error);
+                        },
+                        () => {
+                            // Upload completed successfully
+                            getDownloadURL(uploadTask.snapshot.ref)
+                                .then((url) => {
+                                    onComplete(url);
+                                })
+                                .catch((error) => {
+                                    console.error('Error getting download URL:', error);
+                                });
+                        }
+                    );
+
+                    // Reset dataArray for next recording
+                    dataArray = [];
+                };
+
+                setMediaRecorder(recorder);
+            })
+            .catch(err => {
+                console.error('Error accessing microphone:', err.name, err.message);
+            });
+    }, []);
+
+    const handleStartRecording = () => {
+        if (mediaRecorder) {
+            mediaRecorder.start();
+            setRecording(true);
+        }
     };
 
-    // Start record
-    let start = document.getElementById('btnStart');
+    const handleStopRecording = () => {
+        if (mediaRecorder) {
+            mediaRecorder.stop();
+            setRecording(false);
+        }
+    };
 
-    // Stop record
-    let stop = document.getElementById('btnStop');
+    return (
+        <div>
+            {recording ? 
+            <GraphicEqIcon onClick={handleStopRecording} style={{cursor: 'pointer'}}/>
+            :
+            <MicIcon onClick={handleStartRecording} style={{cursor: isCurrentUserBlocked || isReceiverBlocked ? "not-allowed" : "pointer"}} disabled={isCurrentUserBlocked || isReceiverBlocked}/>
+        }
+        </div>
+    );
+};
 
-    // 2nd audio tag for play the audio
-    let playAudio = document.getElementById('adioPlay');
-
-    // This is the main thing to recorded 
-    // the audio 'MediaRecorder' API
-    let mediaRecorder = new MediaRecorder(mediaStreamObj);
-    // Pass the audio stream 
-
-    // Start event
-    start.addEventListener('click', function (ev) {
-      mediaRecorder.start();
-      // console.log(mediaRecorder.state);
-    })
-
-    // Stop event
-    stop.addEventListener('click', function (ev) {
-      mediaRecorder.stop();
-      // console.log(mediaRecorder.state);
-    });
-
-    // If audio data available then push 
-    // it to the chunk array
-    mediaRecorder.ondataavailable = function (ev) {
-      dataArray.push(ev.data);
-    }
-
-    // Chunk array to store the audio data 
-    let dataArray = [];
-
-    // Convert the audio data in to blob 
-    // after stopping the recording
-    mediaRecorder.onstop = function (ev) {
-
-      // blob of type mp3
-      let audioData = new Blob(dataArray, 
-                { 'type': 'audio/mp3;' });
-       
-      // After fill up the chunk 
-      // array make it empty
-      dataArray = [];
-
-      // Creating audio url with reference 
-      // of created blob named 'audioData'
-      let audioSrc = window.URL
-          .createObjectURL(audioData);
-
-      // Pass the audio url to the 2nd video tag
-      playAudio.src = audioSrc;
-    }
-  })
-
-  // If any error occurs then handles the error 
-  .catch(function (err) {
-    console.log(err.name, err.message);
-  });
+export default Voice;

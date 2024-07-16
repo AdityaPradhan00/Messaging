@@ -14,7 +14,6 @@ const List = () => {
         const handleResize = () => {
             setScreenWidth(window.innerWidth);
         };
-        console.log('s', screenWidth)
         window.addEventListener('resize', handleResize);
         return () => {
             window.removeEventListener('resize', handleResize);
