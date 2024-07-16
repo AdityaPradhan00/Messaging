@@ -4,11 +4,12 @@ import { uploadBytesResumable, ref, getDownloadURL } from 'firebase/storage';
 import MicIcon from '@mui/icons-material/Mic';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import { useChatStore } from "../../lib/chatStore";
+import './voice.css';
 
 const Voice = ({onComplete}) => {
     const [recording, setRecording] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState(null);
-    const{ chatId, user, isCurrentUserBlocked, isReceiverBlocked, }= useChatStore();
+    const{ chatId, isCurrentUserBlocked, isReceiverBlocked, }= useChatStore();
 
 
     useEffect(() => {
@@ -78,9 +79,9 @@ const Voice = ({onComplete}) => {
     return (
         <div>
             {recording ? 
-            <GraphicEqIcon onClick={handleStopRecording} style={{cursor: 'pointer'}}/>
+            <GraphicEqIcon className={recording ? 'pulse' : ''} onClick={handleStopRecording} style={{cursor: 'pointer'}}/>
             :
-            <MicIcon onClick={handleStartRecording} style={{cursor: isCurrentUserBlocked || isReceiverBlocked ? "not-allowed" : "pointer"}} disabled={isCurrentUserBlocked || isReceiverBlocked}/>
+            <MicIcon  onClick={handleStartRecording} style={{cursor: isCurrentUserBlocked || isReceiverBlocked ? "not-allowed" : "pointer"}} disabled={isCurrentUserBlocked || isReceiverBlocked}/>
         }
         </div>
     );
