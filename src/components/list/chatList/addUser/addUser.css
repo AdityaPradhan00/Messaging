@@ -58,6 +58,9 @@
             color: white;
             border: none;
             cursor: pointer;
+            &:disabled{
+                background-color: #ccc;
+            }
         }
     }
 }

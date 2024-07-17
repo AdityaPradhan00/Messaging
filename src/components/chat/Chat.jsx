@@ -223,7 +223,6 @@ const Chat = () => {
 
 
     const handleAudio = async (url) => {
-      console.log('Data url', url);
 
       const dataToSend = await calculateEmoData();
       setEmoData(dataToSend);

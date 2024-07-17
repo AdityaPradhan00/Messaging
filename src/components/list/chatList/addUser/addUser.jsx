@@ -1,13 +1,31 @@
 import { arrayUnion, collection, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 import "./addUser.css";
 import {db} from "../../../../lib/firebase";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {useUserStore} from "../../../../lib/userStore";
 
-const AddUser  = () => {
+const AddUser  = ({props}) => {
 
     const [user, setUser] = useState(null);
+    const [vis, setVis] = useState(true);
+    
     const { currentUser } = useUserStore();
+
+    useEffect(() => {
+        const check = () =>{
+            if (user){
+                props.forEach(prop => {
+                    if (prop.id != user.id) {
+                        setVis(false);
+                    }
+                })
+            }
+        }
+        check()
+    }, [user])
+
+
+
     const handleSearch = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -72,7 +90,7 @@ const AddUser  = () => {
                     <img src={user.avatar || "./avatar.png"} alt="" />
                     <span>{user.username}</span>
                 </div>
-                <button onClick={handleAdd}>Add User</button>
+                {vis && <button onClick={handleAdd}>Add User</button>}
             </div>}
         </div>
     )
