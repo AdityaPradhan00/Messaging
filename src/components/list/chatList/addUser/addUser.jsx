@@ -12,17 +12,25 @@ const AddUser  = ({props}) => {
     const { currentUser } = useUserStore();
 
     useEffect(() => {
-        const check = () =>{
-            if (user){
-                props.forEach(prop => {
-                    if (prop.id != user.id) {
+        const check = () => {
+            if (user) {
+                const found = props.some(prop => {
+                    if (prop.receiverId == user.id) {
+
                         setVis(false);
+                        return true; 
                     }
-                })
+                    return false;
+                });
+                if (!found) {
+                    setVis(true);
+                }
+            } else {
+                console.log('User does not exist');
             }
-        }
-        check()
-    }, [user])
+        };
+        check();
+    }, [user]);
 
 
 
@@ -46,7 +54,7 @@ const AddUser  = ({props}) => {
     }
 
     const handleAdd = async () => {
-
+        setVis(false)
         const chatRef = collection(db, "chats");
         const userChatsRef = collection(db, "userchats");
 

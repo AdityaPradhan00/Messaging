@@ -52,9 +52,13 @@ const Login = () => {
         // VALIDATE INPUTS
         if (!username || !email || !password){
             toast.warn("Please enter inputs!");
+            setLoading(false);
+            return
         }
         if (!avatar.file){
             toast.warn("Please upload an avatar!");
+            setLoading(false);
+            return
         } 
             
         // VALIDATE UNIQUE USERNAME
@@ -64,6 +68,7 @@ const Login = () => {
         if (!querySnapshot.empty) {
             toast.warn("Select another username");
             setLoading(false);
+            return
         }
     
         try {
