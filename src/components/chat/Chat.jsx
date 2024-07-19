@@ -160,7 +160,6 @@ const Chat = () => {
       return privateKey.decrypt(decoded, 'RSA-OAEP');
   };
 
-console.log("Current: ", currentUser.publicKey)
     const handleSend = async () => {
         setSending(true);
         if (text === "") {
@@ -177,7 +176,6 @@ console.log("Current: ", currentUser.publicKey)
           if (img.file) {
             imgUrl = await upload(img.file);
           }
-          console.log(chatId, "chatid")
           const userChatsDocRef = doc(db, "userchats", currentUser.id);
           const userChatsDoc = await getDoc(userChatsDocRef);
       
