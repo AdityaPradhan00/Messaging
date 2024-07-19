@@ -141,14 +141,15 @@ const Login = () => {
                         <li>Implemented Basic real-time messaging functionality implemented, allowing users to send and receive messages instantly.</li>
                         <li>Image sending functionality is implemented.</li>
                         <li>Integrated face-api.js to detect the sender's emotion under well-lit conditions.</li>
+                        <li>Voice Messaging Enabled.</li>
+                        <li>End to End encryption Enabled.</li>
                     </ul>
                 </div>
                 <br />
                 <p>In development</p>
                 <div style={{marginLeft: '15px'}}>
                     <ul>
-                        <li>Voice Messaging.</li>
-                        <li>End to End encryption.</li>
+                        <li>Need to work on Backing up the User's Private key, so that they can use it in any device. Currently the private key is stored in browser memory.</li>
                         <li>Tone detection in voice messages with urgent notifications.</li>
                         <li>Improving emotion detection with a new model or custom training.</li>
                     </ul>

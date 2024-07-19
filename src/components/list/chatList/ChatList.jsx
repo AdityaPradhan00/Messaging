@@ -5,6 +5,7 @@ import { useUserStore } from "../../../lib/userStore"
 import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { useChatStore } from "../../../lib/chatStore";
+import forge from 'node-forge';
 
 const ChatList = ({onItemClick }) => {
     const [addMode, setAddMode] = useState(false);
@@ -14,6 +15,32 @@ const ChatList = ({onItemClick }) => {
     const{ currentUser }= useUserStore();
     const{ chatId, changeChat }= useChatStore();
 
+    // Decrypt message using RSA private key
+    const decryptMessage = (encryptedMessage) => {
+        try {
+            const privateKeyPem = localStorage.getItem('privateKey');
+            if (!privateKeyPem) {
+                throw new Error('Private key not found in local storage.');
+            }
+
+            const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);
+            const decoded = forge.util.decode64(encryptedMessage);
+            const decrypted = privateKey.decrypt(decoded, 'RSA-OAEP');
+            return decrypted;
+        } catch (error) {
+            console.error('Decryption error:', error.message);
+            return null;
+        }
+    };
+
+    const renderMessage = (encryptedMessage) => {
+        const decryptedMessage = decryptMessage(encryptedMessage);
+        if (decryptedMessage) {
+            return <p>{decryptedMessage}</p>;
+        } else {
+            return null;
+        }
+    };
     useEffect(() =>{
         const unSub = onSnapshot(doc(db, "userchats", currentUser.id), async (res) => {
             const items = res.data().chats;
@@ -61,7 +88,8 @@ const ChatList = ({onItemClick }) => {
     }
 
     const filteredChats = chats.filter(c => c.user.username.toLowerCase().includes(input.toLowerCase()));
-
+console.log(currentUser.id)
+console.log(chats)
     return (
         <div className="chatList">
             <div className="search">
@@ -81,7 +109,8 @@ const ChatList = ({onItemClick }) => {
                 <div className="texts">
                     <span>{chat.user.blocked.includes(currentUser.id)
                         ? "User" : chat.user.username}</span>
-                    <p>{chat.lastMessage}</p>
+                        {renderMessage(chat.lastMessage)}
+                        {renderMessage(chat.myLastMessage)}
                 </div>
             </div>
             )}

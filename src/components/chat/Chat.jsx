@@ -216,6 +216,7 @@ const Chat = () => {
               const chatIndex = userChatsData.chats.findIndex((c) => c.chatId === chatId);
       
               userChatsData.chats[chatIndex].lastMessage = encryptedText;
+              userChatsData.chats[chatIndex].myLastMessage = myEncryption;
               userChatsData.chats[chatIndex].isSeen = id === currentUser.id ? true : false;
               userChatsData.chats[chatIndex].updatedAt = Date.now();
       
