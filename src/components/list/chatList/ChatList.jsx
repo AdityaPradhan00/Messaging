@@ -88,8 +88,7 @@ const ChatList = ({onItemClick }) => {
     }
 
     const filteredChats = chats.filter(c => c.user.username.toLowerCase().includes(input.toLowerCase()));
-console.log(currentUser.id)
-console.log(chats)
+
     return (
         <div className="chatList">
             <div className="search">
