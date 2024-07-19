@@ -5,6 +5,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "fire
 import { auth, db } from "../../lib/firebase";
 import { doc, setDoc, collection, query, where, getDocs  } from "firebase/firestore"; 
 import upload from "../../lib/upload";
+import { JSEncrypt } from 'jsencrypt';
 
 const Login = () => {
 
@@ -42,6 +43,8 @@ const Login = () => {
             setLoading(false);
         }
     }
+    
+
     const handleRegister = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -53,12 +56,12 @@ const Login = () => {
         if (!username || !email || !password){
             toast.warn("Please enter inputs!");
             setLoading(false);
-            return
+            return;
         }
         if (!avatar.file){
             toast.warn("Please upload an avatar!");
             setLoading(false);
-            return
+            return;
         } 
             
         // VALIDATE UNIQUE USERNAME
@@ -68,40 +71,53 @@ const Login = () => {
         if (!querySnapshot.empty) {
             toast.warn("Select another username");
             setLoading(false);
-            return
+            return;
         }
     
         try {
-          const res = await createUserWithEmailAndPassword(auth, email, password);
+            // Generate RSA key pair
+            const crypt = new JSEncrypt({ default_key_size: 2048 });
+            crypt.getKey();
+            const publicKey = crypt.getPublicKey();
+            const privateKey = crypt.getPrivateKey();
     
-          const imgUrl = await upload(avatar.file);
+            // Store private key in local storage
+            localStorage.setItem('privateKey', privateKey);
     
-          await setDoc(doc(db, "users", res.user.uid), {
-            username,
-            email,
-            avatar: imgUrl,
-            id: res.user.uid,
-            blocked: [],
-          });
+            // Create user with Firebase Auth
+            const res = await createUserWithEmailAndPassword(auth, email, password);
     
-          await setDoc(doc(db, "userchats", res.user.uid), {
-            chats: [],
-          });
+            // Upload avatar image
+            const imgUrl = await upload(avatar.file);
     
-          toast.success("Account created! Reloading!");
-          window.location.reload();
+            // Save user details including public key in Firestore
+            await setDoc(doc(db, "users", res.user.uid), {
+                username,
+                email,
+                avatar: imgUrl,
+                id: res.user.uid,
+                publicKey, // Save public key
+                blocked: [],
+            });
+    
+            await setDoc(doc(db, "userchats", res.user.uid), {
+                chats: [],
+            });
+    
+            toast.success("Account created! Redirecting!");
+            window.location.reload();
         } catch (err) {
-          console.log(err);
-          toast.error(err.message);
+            console.log(err);
+            toast.error(err.message);
         } finally {
             setLoading(false);
             setAvatar({
                 file: null,
                 url: ""
-            })
-            
+            });
         }
-      };
+    };
+    
 
     const handleLogView = () => {
         setLogView(true);

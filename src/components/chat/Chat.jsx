@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import "./chat.css"
 import EmojiPicker from "emoji-picker-react";
-import { onSnapshot, doc, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
+import { onSnapshot, doc, updateDoc, arrayUnion, getDoc, where, query } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
 import { useChatStore } from "../../lib/chatStore";
 import { useUserStore } from "../../lib/userStore";
@@ -9,6 +9,7 @@ import upload from "../../lib/upload"
 import * as faceapi from 'face-api.js';
 import SendIcon from '@mui/icons-material/Send';
 import Voice from './Voice';
+import forge from 'node-forge';
 
 const Chat = () => {
     const videoRef = useRef(null);
@@ -140,6 +141,26 @@ const Chat = () => {
         setText((prev) => prev+e.emoji);
         setOpen(false);
     }
+
+    const encryptMessage = (publicKeyPem, message) => {
+      const publicKey = forge.pki.publicKeyFromPem(publicKeyPem);
+      const encrypted = publicKey.encrypt(message, 'RSA-OAEP');
+      return forge.util.encode64(encrypted);
+    };
+    
+
+    const decryptMessage = (encryptedMessage) => {
+      const privateKeyPem = localStorage.getItem('privateKey');
+      if (!privateKeyPem) {
+          throw new Error('Private key not found in local storage.');
+      }
+  
+      const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);
+      const decoded = forge.util.decode64(encryptedMessage);
+      return privateKey.decrypt(decoded, 'RSA-OAEP');
+  };
+
+console.log("Current: ", currentUser.publicKey)
     const handleSend = async () => {
         setSending(true);
         if (text === "") {
@@ -156,12 +177,27 @@ const Chat = () => {
           if (img.file) {
             imgUrl = await upload(img.file);
           }
+          console.log(chatId, "chatid")
+          const userChatsDocRef = doc(db, "userchats", currentUser.id);
+          const userChatsDoc = await getDoc(userChatsDocRef);
       
+          if (!userChatsDoc.exists()) {
+            console.error('User chats document does not exist.');
+            return null;
+          }
+      
+          const userChatsData = userChatsDoc.data();
+          const chat = userChatsData.chats.find(chat => chat.chatId === chatId);
+        
+          const encryptedText = encryptMessage(chat.receiverPublicKey, text);
+          const myEncryption = encryptMessage(currentUser.publicKey, text);
+          
           // Update chat document with message data including emoData
           await updateDoc(doc(db, "chats", chatId), {
             messages: arrayUnion({
               senderId: currentUser.id,
-              text,
+              text: encryptedText,
+              myText: myEncryption,
               createdAt: new Date(),
               ...(imgUrl && { img: imgUrl }),
               ...(emoData && {emoData: dataToSend}),
@@ -181,7 +217,7 @@ const Chat = () => {
       
               const chatIndex = userChatsData.chats.findIndex((c) => c.chatId === chatId);
       
-              userChatsData.chats[chatIndex].lastMessage = text;
+              userChatsData.chats[chatIndex].lastMessage = encryptedText;
               userChatsData.chats[chatIndex].isSeen = id === currentUser.id ? true : false;
               userChatsData.chats[chatIndex].updatedAt = Date.now();
       
@@ -265,6 +301,41 @@ const Chat = () => {
 
 
     };
+
+    
+    const handleReceiveMessage = (message) => {
+      try {
+        let decryptedText = '';
+    
+        // For the sender
+        if (message.senderId === currentUser.id) {
+          // Decrypt with sender's private key
+          decryptedText = message.myText ? decryptMessage(message.myText) : '';
+        } else {
+          // For the receiver, decrypt with receiver's private key
+          decryptedText = message.text ? decryptMessage(message.text) : '';
+        }
+    
+        return (
+          <div className={message.senderId === currentUser?.id ? "message own" : "message"} key={message?.createdAt}>
+            <div className="texts">
+              {message.img && <img src={message.img} alt="" />}
+              {message.audio ? <audio controls src={message.audio} /> : <p>{decryptedText}</p>}
+              {message.emoData && (
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', backgroundColor: 'rgba(17, 25, 40, 0.3)' }}>
+                  <p style={{ fontSize: '12px', backgroundColor: 'transparent' }}>Emotion: {message.emoData.emotion}</p>
+                  <p style={{ fontSize: '12px', backgroundColor: 'transparent' }}>Confidence: {message.emoData.confidence}%</p>
+                </div>
+              )}
+              <span>{handleTime(message.createdAt)}</span>
+            </div>
+          </div>
+        );
+      } catch (err) {
+        console.error('Decryption error:', err);
+        return <p>Error decrypting message</p>;
+      }
+    };
  
 
 
@@ -288,24 +359,7 @@ const Chat = () => {
             </div>
 
             <div className="center">
-                {chat?.messages?.map((message) => (
-                    <div className={message.senderId === currentUser?.id ? "message own" : "message"} key={message?.createdAt}>
-                    <div className="texts">
-                        {message.img && <img src={message.img} alt="" />}
-                        
-                        {message.audio ? <audio controls src={message.audio} /> : <p>{message.text}</p>}
-                        
-                        {message.emoData && ( 
-                          <div style={{display:'flex', alignItems:'flex-end', justifyContent:'flex-end', backgroundColor: 'rgba(17, 25, 40, 0.3)'}}>
-                              <p style={{fontSize: '12px', backgroundColor:'transparent'}}>Emotion: {message.emoData.emotion}</p>
-                              <p style={{fontSize: '12px', backgroundColor:'transparent'}}>Confidence: {message.emoData.confidence}%</p>
-                              {/* Add other emotion data fields as needed */}
-                          </div>
-                        )}
-                        <span>{handleTime(message.createdAt)}</span>
-                    </div>
-                </div>
-            ))}
+            {chat?.messages?.map((message) => handleReceiveMessage(message))}
             {faceError && <p style={{textAlign: 'center', color:'rgb(220, 20, 60)'}} >Face Not detected!!</p>}
             {
                 img.url && 
